@@ -1,0 +1,17 @@
+name: scheme
+version: 0.0.1.0
+synopsis: Peter writes himself a scheme
+description: following along from tutorial online
+homepage: peterklipfel.com
+license: BSD3
+license-file: LICENSE
+author: Peter Klipfel
+maintainer: peter@klipfel.me
+copyright: 2014 Peter Klipfel
+build-type: Simple
+cabal-version: >=1.8
+
+executable site
+  main-is: site.hs
+  build-depends: base >= 4.5.0.0
+               , parsec >= 3.1.5
