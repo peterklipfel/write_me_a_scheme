@@ -37,6 +37,13 @@ readExpr input = case parse parseExpr "lisp" input of
   Left err -> "Could not find matching expression: " ++ show err
   Right val -> "Valid Value"
 
+showVal :: LispVal -> String
+showVal (String contents) = "\""++contents++"\""
+showVal (Atom name) = name
+showVal (Number contents) = show contents
+showVal (Bool True) = "#t"
+showVal (Bool False) = "#f"
+
 spaces :: Parser()
 spaces = skipMany1 space
 
