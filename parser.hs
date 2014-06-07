@@ -11,11 +11,18 @@ data LispVal = Atom String
              | String String
              | Bool Bool
 
+apply :: String -> [LispVal] -> LispVal
+apply func args = maybe (Bool False) ($ args) $ lookup func primitives
+
 eval :: LispVal -> LispVal
 eval val@(String _) = val
 eval val@(Number _) = val
 eval val@(Bool _) = val
 eval (List [Atom "quote", val]) = val
+eval (List (Atom func : args)) = apply func $ map eval args
+
+numericBinop :: (Integer -> Integer -> Integer) -> [LispVal] -> LispVal
+numericBinop op params = Number $ foldl1 op $ map unpackNum params
 
 parseAtom :: Parser LispVal
 parseAtom = do
@@ -62,6 +69,15 @@ parseString = do
   char '"'
   return $ String x
 
+primitives :: [(String, [LispVal] -> LispVal)]
+primitives = [("+", numericBinop (+)),
+              ("-", numericBinop (-)),
+              ("*", numericBinop (*)),
+              ("/", numericBinop div),
+              ("mod", numericBinop mod),
+              ("quotient", numericBinop quot),
+              ("remainder", numericBinop rem)]
+
 readExpr :: String -> LispVal
 readExpr input = case parse parseExpr "lisp" input of
   Left err -> String $ "Could not find matching expression: " ++ show err
@@ -82,10 +98,18 @@ spaces = skipMany1 space
 symbol :: Parser Char
 symbol = oneOf "!$%&|*+-/:<=>?@^_~"
 
+unpackNum :: LispVal -> Integer
+unpackNum (Number n) = n
+unpackNum (String s) = let parsed = reads s in
+                          if null parsed
+                          then 0
+                          else fst $ parsed !! 0
+unpackNum (List [n]) = unpackNum n
+unpackNum _          = 0 
+
 unwordsList :: [LispVal] -> String
 unwordsList = unwords . map showVal
 
 main :: IO()
 main = getArgs >>= putStrLn . show . eval .readExpr . (!! 0)
-  putStrLn . readExpr $ args !! 0
 
