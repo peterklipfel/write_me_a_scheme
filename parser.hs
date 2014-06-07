@@ -11,6 +11,12 @@ data LispVal = Atom String
              | String String
              | Bool Bool
 
+eval :: LispVal -> LispVal
+eval val@(String _) = val
+eval val@(Number _) = val
+eval val@(Bool _) = val
+eval (List [Atom "quote", val]) = val
+
 parseAtom :: Parser LispVal
 parseAtom = do
   first <- letter <|> symbol
@@ -56,10 +62,10 @@ parseString = do
   char '"'
   return $ String x
 
-readExpr :: String -> String
+readExpr :: String -> LispVal
 readExpr input = case parse parseExpr "lisp" input of
-  Left err -> "Could not find matching expression: " ++ show err
-  Right val -> show val
+  Left err -> String $ "Could not find matching expression: " ++ show err
+  Right val -> val
 
 showVal :: LispVal -> String
 showVal (String contents) = "\""++contents++"\""
@@ -80,7 +86,6 @@ unwordsList :: [LispVal] -> String
 unwordsList = unwords . map showVal
 
 main :: IO()
-main = do
-  args <- getArgs
+main = getArgs >>= putStrLn . show . eval .readExpr . (!! 0)
   putStrLn . readExpr $ args !! 0
 
