@@ -33,11 +33,30 @@ apply func args = maybe (throwError $ NotFunction "Unrecognized primitive functi
                         ($ args) 
                         (lookup func primitives)
 
+boolBinOp :: (LispVal -> ThrowsError a) -> (a -> a -> Bool) -> [LispVal] -> ThrowsError LispVal
+boolBinOp unpacker op args = if length args /= 2
+                             then throwError $ NumArgs 2 args
+                             else do left <- unpacker $ args !! 0
+                                     right <- unpacker $ args !! 1
+                                     return $ Bool $ left `op` right
+
+boolBoolBinop = boolBinOp unpackBool
+numBoolBinop = boolBinOp unpackNum
+strBoolBinop = boolBinOp unpackStr
+
+car :: [LispVal] -> ThrowsError LispVal
+car [List (x:xs)] = return x
+
 eval :: LispVal -> ThrowsError LispVal
 eval val@(String _) = return val
 eval val@(Number _) = return val
 eval val@(Bool _) = return val
 eval (List [Atom "quote", val]) = return val
+eval (List [Atom "if", pred, conseq, alt]) = 
+  do result <- eval pred
+     case result of 
+       Bool False -> eval alt
+       otherwise -> eval conseq
 eval (List (Atom func : args)) = mapM eval args >>= apply func
 eval badForm = throwError $ BadSpecialForm "Unrecognized special form" badForm
 
@@ -100,7 +119,21 @@ primitives = [("+", numericBinop (+)),
               ("/", numericBinop div),
               ("mod", numericBinop mod),
               ("quotient", numericBinop quot),
-              ("remainder", numericBinop rem)]
+              ("remainder", numericBinop rem),
+              ("=", numBoolBinop (==)),
+              ("<", numBoolBinop (<)),
+              (">", numBoolBinop (>)),
+              ("/=",numBoolBinop (/=)),
+              (">=",numBoolBinop (>=)),
+              ("<=",numBoolBinop (<=)),
+              ("&&",boolBoolBinop (&&)),
+              ("||",boolBoolBinop (||)),
+              ("string=?", strBoolBinop (==)),
+              ("string?", strBoolBinop (>)),
+              ("string<=?",strBoolBinop (<=)),
+              ("string<?",strBoolBinop (<)),
+              ("string>?",strBoolBinop (>)),
+              ("string>=?",strBoolBinop (>=))]
 
 readExpr :: String -> ThrowsError LispVal
 readExpr input = case parse parseExpr "lisp" input of
@@ -135,6 +168,10 @@ symbol = oneOf "!$%&|*+-/:<=>?@^_~"
 
 trapError action = catchError action (return . show)
 
+unpackBool :: LispVal -> ThrowsError Bool
+unpackBool (Bool b) = return b
+unpackBool notBool = throwError $ TypeMismatch "boolean" notBool
+
 unpackNum :: LispVal -> ThrowsError Integer
 unpackNum (Number n) = return n
 unpackNum (String s) = let parsed = reads s in
@@ -143,6 +180,12 @@ unpackNum (String s) = let parsed = reads s in
                           else return $ fst $ parsed !! 0
 unpackNum (List [n]) = unpackNum n
 unpackNum notNum     = throwError $ TypeMismatch "number" notNum 
+
+unpackStr :: LispVal -> ThrowsError String
+unpackStr (Number n) = return $ show n
+unpackStr (String s) = return s
+unpackStr (Bool s) = return $ show s
+unpackStr notString = throwError $ TypeMismatch "string" notString
 
 unwordsList :: [LispVal] -> String
 unwordsList = unwords . map showVal
