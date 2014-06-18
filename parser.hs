@@ -26,6 +26,8 @@ data LispVal = Atom String
              | String String
              | Bool Bool
 
+data Unpacker = forall a. Eq a => AnyUnpacker (LispVal -> ThrowsError a)
+
 type ThrowsError = Either LispError
 
 apply :: String -> [LispVal] -> ThrowsError LispVal
@@ -63,6 +65,14 @@ cons [x, List xs] = return $ List $ [x] ++ xs
 cons [x, DottedList xs xlast] = return $ DottedList ([x] ++ xs) xlast
 cons [x1, x2] = return $ DottedList [x1] x2
 cons badArgs = throwError $ NumArgs 2 badArgs
+
+equal :: [LispVal] -> ThrowsError LispVal
+equal [arg1, arg2] = do
+  primitiveEquals <- liftM or $ mapM (unpackEquals arg1 arg2)
+                     [AnyUnpacker unpackNum, AnyUnpacker unpackStr, AnyUnpacker unpackBool]
+  eqvEquals <- eqv [arg1, arg2]
+  return $ Bool $ (primitiveEquals || let (Bool x) = eqvEquals in x)
+equal badArgList = throwError $ NumArgs 2 badArgList
 
 eqv :: [LispVal] -> ThrowsError LispVal
 eqv [(Bool arg1), (Bool arg2)] = return $ Bool $ arg1 == arg2
@@ -168,7 +178,9 @@ primitives = [("+", numericBinop (+)),
               ("cdr", cdr),
               ("car", car),
               ("eq?", eqv),
-              ("eqv?", eqv)]
+              ("eqv?", eqv),
+              ("equal?", eqv),
+              ("cons?", eqv)]
 
 readExpr :: String -> ThrowsError LispVal
 readExpr input = case parse parseExpr "lisp" input of
@@ -202,6 +214,13 @@ symbol :: Parser Char
 symbol = oneOf "!$%&|*+-/:<=>?@^_~"
 
 trapError action = catchError action (return . show)
+
+unpackEquals :: LispVal -> LispVal -> Unpacker -> ThrowsError Bool
+unpackEquals arg1 arg2 (AnyUnpacker unpacker) =
+             do unpacked1 <- unpacker arg1
+                unpacked2 <- unpacker arg2
+                return $ unpacked1 == unpacked2
+          `catchError` (const $ return False)
 
 unpackBool :: LispVal -> ThrowsError Bool
 unpackBool (Bool b) = return b
